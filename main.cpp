@@ -41,10 +41,17 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     EnumWindowsCallbackArgs* args = (EnumWindowsCallbackArgs*)lParam;
     DWORD pid = 0;
     DWORD tid = GetWindowThreadProcessId(hwnd, &pid);
-    // Find a visible window that belongs to the target process
+    
+    // Find a visible window that belongs to the target process and has a title
     if (pid == args->targetPID && IsWindowVisible(hwnd)) {
-        args->resultTID = tid;
-        return FALSE; // stop enumerating
+        char windowTitle[256];
+        GetWindowTextA(hwnd, windowTitle, sizeof(windowTitle));
+        
+        if (strlen(windowTitle) > 0) {
+            args->resultTID = tid;
+            std::cout << "[+] found game window: " << windowTitle << " (TID: " << tid << ")" << std::endl;
+            return FALSE; // stop enumerating
+        }
     }
     return TRUE; // continue enumerating
 }
@@ -125,8 +132,15 @@ int wmain(int argc, wchar_t* argv[], wchar_t* envp[]) {
     cout << "[+] hook active (function: ";
     wcout << functionName;
     cout << ")" << endl;
-    cout << "[>] press any key to unhook" << endl;
-    system("pause > nul");
+    cout << "[>] press END key to unhook" << endl;
+    
+    while (true) {
+        // Cek jika tombol END (VK_END) ditekan
+        if (GetAsyncKeyState(VK_END) & 0x8000) {
+            break;
+        }
+        Sleep(100); // Cegah CPU 100% usage
+    }
 
     cout << "[+] removing hook..." << endl;
     if (!RemoveHook()) {

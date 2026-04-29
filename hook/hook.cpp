@@ -6,7 +6,8 @@ static HMODULE g_dllModule = nullptr;
 
 bool SetupHook(const std::wstring& dllPath, const std::wstring& functionName, DWORD threadId) {
     std::cout << "[+] loading dll..." << std::endl;
-    g_dllModule = LoadLibraryExW(dllPath.c_str(), NULL, DONT_RESOLVE_DLL_REFERENCES);
+    // Menggunakan LoadLibraryW biasa agar HMODULE valid dan bisa dikenali OS untuk injeksi
+    g_dllModule = LoadLibraryW(dllPath.c_str());
     if (!g_dllModule) {
         std::cout << "[-] error: failed to load dll" << std::endl;
         return false;
