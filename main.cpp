@@ -12,6 +12,64 @@
  */
 
 #include "utils.hpp"
+#include <TlHelp32.h>
+
+DWORD GetProcessIdByName(const std::wstring& processName) {
+    PROCESSENTRY32W pe32;
+    pe32.dwSize = sizeof(PROCESSENTRY32W);
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) return 0;
+
+    if (Process32FirstW(hSnapshot, &pe32)) {
+        do {
+            if (processName == pe32.szExeFile) {
+                CloseHandle(hSnapshot);
+                return pe32.th32ProcessID;
+            }
+        } while (Process32NextW(hSnapshot, &pe32));
+    }
+    CloseHandle(hSnapshot);
+    return 0;
+}
+
+struct EnumWindowsCallbackArgs {
+    DWORD targetPID;
+    DWORD resultTID;
+};
+
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    EnumWindowsCallbackArgs* args = (EnumWindowsCallbackArgs*)lParam;
+    DWORD pid = 0;
+    DWORD tid = GetWindowThreadProcessId(hwnd, &pid);
+    // Find a visible window that belongs to the target process
+    if (pid == args->targetPID && IsWindowVisible(hwnd)) {
+        args->resultTID = tid;
+        return FALSE; // stop enumerating
+    }
+    return TRUE; // continue enumerating
+}
+
+DWORD GetThreadIdByProcessId(DWORD pid) {
+    EnumWindowsCallbackArgs args = { pid, 0 };
+    EnumWindows(EnumWindowsProc, (LPARAM)&args);
+    
+    // If no visible window found, try enumerating again without IsWindowVisible check
+    if (args.resultTID == 0) {
+        auto fallbackProc = [](HWND hwnd, LPARAM lParam) -> BOOL {
+            EnumWindowsCallbackArgs* a = (EnumWindowsCallbackArgs*)lParam;
+            DWORD p = 0;
+            DWORD t = GetWindowThreadProcessId(hwnd, &p);
+            if (p == a->targetPID) {
+                a->resultTID = t;
+                return FALSE;
+            }
+            return TRUE;
+        };
+        EnumWindows(fallbackProc, (LPARAM)&args);
+    }
+    
+    return args.resultTID;
+}
 
 int wmain(int argc, wchar_t* argv[], wchar_t* envp[]) {
     CustomizeConsoleWindow();
@@ -34,16 +92,25 @@ int wmain(int argc, wchar_t* argv[], wchar_t* envp[]) {
     cout << "[+] found export: ";
     wcout << functionName << endl;
 
-    cout << "[+] locating target window..." << endl;
-    HWND hwnd = FindWindowW(L"VALORANTUnrealWindow", NULL);
-    if (!hwnd) {
-        cout << "[-] error: target window not found" << endl;
+    cout << "[?] enter target process name (e.g. game.exe): ";
+    wstring processName;
+    std::getline(std::wcin, processName);
+    if (processName.empty()) {
+        cout << "[-] error: no process name entered" << endl;
         system("pause");
         return EXIT_FAILURE;
     }
 
-    DWORD pid = NULL;
-    DWORD tid = GetWindowThreadProcessId(hwnd, &pid);
+    cout << "[+] locating target process..." << endl;
+    DWORD pid = GetProcessIdByName(processName);
+    if (!pid) {
+        cout << "[-] error: target process not found" << endl;
+        system("pause");
+        return EXIT_FAILURE;
+    }
+
+    cout << "[+] locating target thread..." << endl;
+    DWORD tid = GetThreadIdByProcessId(pid);
     if (!tid) {
         cout << "[-] error: failed to get thread id" << endl;
         system("pause");
