@@ -99,22 +99,19 @@ int wmain(int argc, wchar_t* argv[], wchar_t* envp[]) {
     cout << "[+] found export: ";
     wcout << functionName << endl;
 
-    cout << "[?] enter target process name (e.g. game.exe): ";
+    cout << "[?] enter target process name [HTGame.exe]: ";
     wstring processName;
     std::getline(std::wcin, processName);
     if (processName.empty()) {
-        cout << "[-] error: no process name entered" << endl;
-        system("pause");
-        return EXIT_FAILURE;
+        processName = L"HTGame.exe";
     }
 
-    cout << "[+] locating target process..." << endl;
-    DWORD pid = GetProcessIdByName(processName);
-    if (!pid) {
-        cout << "[-] error: target process not found" << endl;
-        system("pause");
-        return EXIT_FAILURE;
+    wcout << L"[+] waiting for " << processName << L" to be launched..." << endl;
+    DWORD pid = 0;
+    while (!(pid = GetProcessIdByName(processName))) {
+        Sleep(1000);
     }
+    cout << "[+] process found (PID: " << pid << ")" << endl;
 
     cout << "[+] locating target thread..." << endl;
     DWORD tid = GetThreadIdByProcessId(pid);
